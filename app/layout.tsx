@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import "bootstrap/dist/css/bootstrap.min.css";
+import Navbar from "@/components/Navbar";
 import "./globals.css";
-import Navbar from "../components/Navbar";
 
 export const metadata: Metadata = {
-  title: "Housing Prediction Portal",
-  description: "Property price prediction and housing market analysis",
+  title: "HousingAI",
+  description:
+    "Machine learning powered property price prediction platform",
 };
 
 export default function RootLayout({
@@ -17,7 +17,10 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <Navbar />
-        <main>{children}</main>
+
+        <main className="min-h-[calc(100vh-4rem)]">
+          {children}
+        </main>
       </body>
     </html>
   );

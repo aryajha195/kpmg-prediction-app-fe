@@ -1,1246 +1,214 @@
-"use client";
-
-import { FormEvent, useState } from "react";
-
-type FormData = {
-  square_footage: string;
-  bedrooms: string;
-  bathrooms: string;
-  year_built: string;
-  lot_size: string;
-  distance_to_city_center: string;
-  school_rating: string;
-};
-
-type PredictionResponse = {
-  predictions: {
-    predicted_price: number;
-  }[];
-};
-
-export default function EstimatorPage() {
-  const [formData, setFormData] =
-    useState<FormData>({
-      square_footage: "",
-      bedrooms: "",
-      bathrooms: "",
-      year_built: "",
-      lot_size: "",
-      distance_to_city_center: "",
-      school_rating: "",
-    });
-
-  const [prediction, setPrediction] =
-    useState<number | null>(null);
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
-
-  // --------------------------------------------------
-  // Handle input changes
-  // --------------------------------------------------
-
-  const handleChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const {
-      name,
-      value,
-    } = event.target;
-
-    setFormData(
-      (previous) => ({
-        ...previous,
-        [name]: value,
-      })
-    );
-
-    // Clear old prediction
-    // when user changes input
-    setPrediction(null);
-
-    // Clear old error
-    // when user changes input
-    setError("");
-  };
-
-
-  // --------------------------------------------------
-  // Handle form submission
-  // --------------------------------------------------
-
-  const handleSubmit = async (
-    event: FormEvent<HTMLFormElement>
-  ) => {
-    event.preventDefault();
-
-    // Clear previous state
-    setError("");
-    setPrediction(null);
-
-
-    // --------------------------------------------------
-    // Required field validation
-    // --------------------------------------------------
-
-    if (
-      !formData.square_footage ||
-      !formData.bedrooms ||
-      !formData.bathrooms ||
-      !formData.year_built ||
-      !formData.lot_size ||
-      !formData.distance_to_city_center ||
-      !formData.school_rating
-    ) {
-      setError(
-        "Please fill in all property details."
-      );
-
-      return;
-    }
-
-
-    // --------------------------------------------------
-    // Convert form values to numbers
-    // --------------------------------------------------
-
-    const squareFootage =
-      Number(
-        formData.square_footage
-      );
-
-    const bedrooms =
-      Number(
-        formData.bedrooms
-      );
-
-    const bathrooms =
-      Number(
-        formData.bathrooms
-      );
-
-    const yearBuilt =
-      Number(
-        formData.year_built
-      );
-
-    const lotSize =
-      Number(
-        formData.lot_size
-      );
-
-    const distanceToCityCenter =
-      Number(
-        formData.distance_to_city_center
-      );
-
-    const schoolRating =
-      Number(
-        formData.school_rating
-      );
-
-
-    // --------------------------------------------------
-    // Client-side validation
-    //
-    // These ranges match the training dataset.
-    // --------------------------------------------------
-
-    if (
-      squareFootage < 980 ||
-      squareFootage > 2400
-    ) {
-      setError(
-        "Square footage must be between 980 and 2,400 sq ft."
-      );
-
-      return;
-    }
-
-
-    if (
-      bedrooms < 2 ||
-      bedrooms > 4
-    ) {
-      setError(
-        "Bedrooms must be between 2 and 4."
-      );
-
-      return;
-    }
-
-
-    if (
-      bathrooms < 1 ||
-      bathrooms > 3
-    ) {
-      setError(
-        "Bathrooms must be between 1 and 3."
-      );
-
-      return;
-    }
-
-
-    if (
-      yearBuilt < 1978 ||
-      yearBuilt > 2012
-    ) {
-      setError(
-        "Year built must be between 1978 and 2012."
-      );
-
-      return;
-    }
-
-
-    if (
-      lotSize < 4400 ||
-      lotSize > 10500
-    ) {
-      setError(
-        "Lot size must be between 4,400 and 10,500 sq ft."
-      );
-
-      return;
-    }
-
-
-    if (
-      distanceToCityCenter < 2.1 ||
-      distanceToCityCenter > 8.2
-    ) {
-      setError(
-        "Distance to city center must be between 2.1 and 8.2 miles."
-      );
-
-      return;
-    }
-
-
-    if (
-      schoolRating < 6.5 ||
-      schoolRating > 9.1
-    ) {
-      setError(
-        "School rating must be between 6.5 and 9.1."
-      );
-
-      return;
-    }
-
-
-    // --------------------------------------------------
-    // Start loading
-    // --------------------------------------------------
-
-    setLoading(true);
-
-
-    try {
-
-      // --------------------------------------------------
-      // Call FastAPI prediction API
-      // --------------------------------------------------
-
-      const response =
-        await fetch(
-          "http://127.0.0.1:8000/predict",
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body:
-              JSON.stringify({
-                square_footage:
-                  squareFootage,
-
-                bedrooms:
-                  bedrooms,
-
-                bathrooms:
-                  bathrooms,
-
-                year_built:
-                  yearBuilt,
-
-                lot_size:
-                  lotSize,
-
-                distance_to_city_center:
-                  distanceToCityCenter,
-
-                school_rating:
-                  schoolRating,
-              }),
-          }
-        );
-
-
-      // --------------------------------------------------
-      // Always read response JSON
-      //
-      // This is important because FastAPI returns
-      // validation errors inside "detail".
-      // --------------------------------------------------
-
-      const data =
-        await response.json();
-
-
-      console.log(
-        "Prediction API Response:",
-        data
-      );
-
-
-      // --------------------------------------------------
-      // Handle API errors
-      // --------------------------------------------------
-
-      if (!response.ok) {
-
-        // ----------------------------------------------
-        // FastAPI validation errors
-        // ----------------------------------------------
-
-        if (
-          Array.isArray(
-            data.detail
-          )
-        ) {
-
-          const validationMessages =
-            data.detail.map(
-              (
-                validationError: {
-                  msg?: string;
-                  loc?: string[];
-                }
-              ) => {
-
-                // Get field name
-                const field =
-                  validationError
-                    .loc?.[
-                      validationError.loc.length -
-                        1
-                    ] ??
-                  "Field";
-
-
-                // Convert technical field names
-                // into user-friendly names
-                const fieldNames: Record<
-                  string,
-                  string
-                > = {
-
-                  square_footage:
-                    "Square footage",
-
-                  bedrooms:
-                    "Bedrooms",
-
-                  bathrooms:
-                    "Bathrooms",
-
-                  year_built:
-                    "Year built",
-
-                  lot_size:
-                    "Lot size",
-
-                  distance_to_city_center:
-                    "Distance to city center",
-
-                  school_rating:
-                    "School rating",
-                };
-
-
-                const friendlyFieldName =
-                  fieldNames[field] ??
-                  field;
-
-
-                return (
-                  `${friendlyFieldName}: ` +
-                  `${validationError.msg ?? "Invalid value."}`
-                );
-              }
-            );
-
-
-          throw new Error(
-            validationMessages.join(
-              "\n"
-            )
-          );
-        }
-
-
-        // ----------------------------------------------
-        // Normal FastAPI error
-        // ----------------------------------------------
-
-        if (
-          typeof data.detail ===
-          "string"
-        ) {
-
-          throw new Error(
-            data.detail
-          );
-        }
-
-
-        // ----------------------------------------------
-        // Unknown API error
-        // ----------------------------------------------
-
-        throw new Error(
-          `API request failed with status ${response.status}.`
-        );
-      }
-
-
-      // --------------------------------------------------
-      // Get prediction from successful response
-      // --------------------------------------------------
-
-      const predictedPrice =
-        data
-          .predictions?.[0]
-          ?.predicted_price;
-
-
-      // --------------------------------------------------
-      // Make sure prediction exists
-      // --------------------------------------------------
-
-      if (
-        predictedPrice ===
-          undefined ||
-        predictedPrice ===
-          null
-      ) {
-
-        throw new Error(
-          "Prediction value was not returned by the API."
-        );
-      }
-
-
-      // --------------------------------------------------
-      // Save prediction
-      // --------------------------------------------------
-
-      setPrediction(
-        predictedPrice
-      );
-
-    } catch (
-      error
-    ) {
-
-      console.error(
-        "Prediction API Error:",
-        error
-      );
-
-
-      // --------------------------------------------------
-      // Show actual error message
-      // --------------------------------------------------
-
-      if (
-        error instanceof Error
-      ) {
-
-        setError(
-          error.message
-        );
-
-      } else {
-
-        setError(
-          "Something went wrong while getting the prediction."
-        );
-      }
-
-    } finally {
-
-      // --------------------------------------------------
-      // Stop loading
-      // --------------------------------------------------
-
-      setLoading(false);
-    }
-  };
-
-
-  // --------------------------------------------------
-  // Format currency
-  // --------------------------------------------------
-
-  const formatCurrency = (
-    value: number
-  ) => {
-
-    return new Intl.NumberFormat(
-      "en-US",
-      {
-        style: "currency",
-        currency: "USD",
-        maximumFractionDigits: 0,
-      }
-    ).format(value);
-  };
-
-
-  // --------------------------------------------------
-  // Render UI
-  // --------------------------------------------------
-
+import Link from "next/link";
+import {
+  Calculator,
+  BarChart3,
+  BrainCircuit,
+  Activity,
+} from "lucide-react";
+
+export default function HomePage() {
   return (
-    <div className="container py-4 py-md-5">
+    <div>
 
-      {/* ========================= */}
-      {/* Page Header */}
-      {/* ========================= */}
+      {/* Hero */}
 
-      <div className="mb-4">
+      <section className="relative overflow-hidden bg-slate-950">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(37,99,235,0.3),_transparent_40%)]" />
 
-        <h1 className="fw-semibold mb-2">
-          Property Value Estimator
-        </h1>
+        <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
 
-        <p className="text-muted mb-0">
-          Enter the property details below to
-          estimate its market value using the
-          machine learning model.
+          <div className="max-w-3xl">
+
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-sm text-blue-300">
+              <BrainCircuit size={16} />
+
+              Machine Learning Powered
+            </div>
+
+            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
+              Smarter property decisions
+              <span className="block text-blue-400">
+                powered by data.
+              </span>
+            </h1>
+
+            <p className="mt-6 text-lg leading-8 text-slate-300">
+              Predict property prices, analyse your
+              estimates, and compare properties using
+              machine learning.
+            </p>
+
+            <div className="mt-8 flex flex-wrap gap-4">
+
+              <Link
+                href="/estimator"
+                className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white transition hover:bg-blue-500"
+              >
+                Estimate Property Value
+              </Link>
+
+              <Link
+                href="/analytics"
+                className="rounded-xl border border-slate-700 px-6 py-3 font-semibold text-white transition hover:bg-white/10"
+              >
+                View Analytics
+              </Link>
+
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+      {/* Stats */}
+
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+
+          <StatCard
+            icon={<BrainCircuit />}
+            title="ML Model"
+            value="Regression"
+            description="Scikit-learn"
+          />
+
+          <StatCard
+            icon={<Calculator />}
+            title="Prediction"
+            value="Real-time"
+            description="FastAPI powered"
+          />
+
+          <StatCard
+            icon={<Activity />}
+            title="API Status"
+            value="Online"
+            description="System operational"
+          />
+
+          <StatCard
+            icon={<BarChart3 />}
+            title="Analytics"
+            value="Available"
+            description="Model insights"
+          />
+
+        </div>
+
+      </section>
+
+      {/* Applications */}
+
+      <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
+
+        <h2 className="text-2xl font-bold text-slate-900">
+          Applications
+        </h2>
+
+        <p className="mt-2 text-slate-500">
+          Choose an application to get started.
         </p>
 
+        <div className="mt-8 grid gap-6 lg:grid-cols-2">
+
+          <ApplicationCard
+            icon={<Calculator size={28} />}
+            title="Property Value Estimator"
+            description="Enter property details and receive an instant machine learning based price prediction."
+            href="/estimator"
+            button="Start Estimating"
+          />
+
+          <ApplicationCard
+            icon={<BarChart3 size={28} />}
+            title="Property Analytics"
+            description="View model metrics, coefficients, prediction history and API health."
+            href="/analytics"
+            button="Open Analytics"
+          />
+
+        </div>
+
+      </section>
+
+    </div>
+  );
+}
+
+function StatCard({
+  icon,
+  title,
+  value,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  value: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+        {icon}
       </div>
 
-
-      {/* ========================= */}
-      {/* Error Alert */}
-      {/* ========================= */}
-
-      {error && (
-
-        <div
-          className="alert alert-danger"
-          role="alert"
-        >
-
-          <strong>
-            Prediction Error
-          </strong>
-
-          <div
-            className="mt-2"
-            style={{
-              whiteSpace:
-                "pre-line",
-            }}
-          >
-            {error}
-          </div>
-
-        </div>
-
-      )}
-
-
-      {/* ========================= */}
-      {/* Main Layout */}
-      {/* ========================= */}
-
-      <div className="row g-4">
-
-
-        {/* ========================= */}
-        {/* Form Section */}
-        {/* ========================= */}
-
-        <div className="col-12 col-lg-7">
-
-          <div className="card shadow-sm border-0">
-
-            <div className="card-body p-4">
-
-              <div className="mb-4">
-
-                <h2 className="h5 fw-semibold mb-1">
-                  Property Details
-                </h2>
-
-                <p className="text-muted small mb-0">
-                  Enter the information about the
-                  property you want to evaluate.
-                </p>
-
-              </div>
-
-
-              <form
-                onSubmit={
-                  handleSubmit
-                }
-              >
-
-                <div className="row g-3">
-
-
-                  {/* ========================= */}
-                  {/* Square Footage */}
-                  {/* ========================= */}
-
-                  <div className="col-12">
-
-                    <label
-                      htmlFor="square_footage"
-                      className="form-label fw-medium"
-                    >
-                      Square Footage
-                    </label>
-
-                    <div className="input-group">
-
-                      <input
-                        id="square_footage"
-                        name="square_footage"
-                        type="number"
-                        min="980"
-                        max="2400"
-                        step="1"
-                        value={
-                          formData.square_footage
-                        }
-                        onChange={
-                          handleChange
-                        }
-                        className="form-control"
-                        placeholder="Example: 1550"
-                      />
-
-                      <span className="input-group-text">
-                        sq ft
-                      </span>
-
-                    </div>
-
-                    <div className="form-text">
-                      Allowed range:
-                      {" "}
-                      980 - 2,400 sq ft.
-                    </div>
-
-                  </div>
-
-
-                  {/* ========================= */}
-                  {/* Bedrooms */}
-                  {/* ========================= */}
-
-                  <div className="col-12 col-md-6">
-
-                    <label
-                      htmlFor="bedrooms"
-                      className="form-label fw-medium"
-                    >
-                      Bedrooms
-                    </label>
-
-                    <input
-                      id="bedrooms"
-                      name="bedrooms"
-                      type="number"
-                      min="2"
-                      max="4"
-                      step="1"
-                      value={
-                        formData.bedrooms
-                      }
-                      onChange={
-                        handleChange
-                      }
-                      className="form-control"
-                      placeholder="Example: 3"
-                    />
-
-                    <div className="form-text">
-                      Allowed range:
-                      {" "}
-                      2 - 4 bedrooms.
-                    </div>
-
-                  </div>
-
-
-                  {/* ========================= */}
-                  {/* Bathrooms */}
-                  {/* ========================= */}
-
-                  <div className="col-12 col-md-6">
-
-                    <label
-                      htmlFor="bathrooms"
-                      className="form-label fw-medium"
-                    >
-                      Bathrooms
-                    </label>
-
-                    <input
-                      id="bathrooms"
-                      name="bathrooms"
-                      type="number"
-                      min="1"
-                      max="3"
-                      step="0.5"
-                      value={
-                        formData.bathrooms
-                      }
-                      onChange={
-                        handleChange
-                      }
-                      className="form-control"
-                      placeholder="Example: 2"
-                    />
-
-                    <div className="form-text">
-                      Allowed range:
-                      {" "}
-                      1 - 3 bathrooms.
-                    </div>
-
-                  </div>
-
-
-                  {/* ========================= */}
-                  {/* Year Built */}
-                  {/* ========================= */}
-
-                  <div className="col-12 col-md-6">
-
-                    <label
-                      htmlFor="year_built"
-                      className="form-label fw-medium"
-                    >
-                      Year Built
-                    </label>
-
-                    <input
-                      id="year_built"
-                      name="year_built"
-                      type="number"
-                      min="1978"
-                      max="2012"
-                      step="1"
-                      value={
-                        formData.year_built
-                      }
-                      onChange={
-                        handleChange
-                      }
-                      className="form-control"
-                      placeholder="Example: 1997"
-                    />
-
-                    <div className="form-text">
-                      Allowed range:
-                      {" "}
-                      1978 - 2012.
-                    </div>
-
-                  </div>
-
-
-                  {/* ========================= */}
-                  {/* Lot Size */}
-                  {/* ========================= */}
-
-                  <div className="col-12 col-md-6">
-
-                    <label
-                      htmlFor="lot_size"
-                      className="form-label fw-medium"
-                    >
-                      Lot Size
-                    </label>
-
-                    <div className="input-group">
-
-                      <input
-                        id="lot_size"
-                        name="lot_size"
-                        type="number"
-                        min="4400"
-                        max="10500"
-                        step="1"
-                        value={
-                          formData.lot_size
-                        }
-                        onChange={
-                          handleChange
-                        }
-                        className="form-control"
-                        placeholder="Example: 6800"
-                      />
-
-                      <span className="input-group-text">
-                        sq ft
-                      </span>
-
-                    </div>
-
-                    <div className="form-text">
-                      Allowed range:
-                      {" "}
-                      4,400 - 10,500 sq ft.
-                    </div>
-
-                  </div>
-
-
-                  {/* ========================= */}
-                  {/* Distance to City Center */}
-                  {/* ========================= */}
-
-                  <div className="col-12 col-md-6">
-
-                    <label
-                      htmlFor="distance_to_city_center"
-                      className="form-label fw-medium"
-                    >
-                      Distance to City Center
-                    </label>
-
-                    <div className="input-group">
-
-                      <input
-                        id="distance_to_city_center"
-                        name="distance_to_city_center"
-                        type="number"
-                        min="2.1"
-                        max="8.2"
-                        step="0.1"
-                        value={
-                          formData.distance_to_city_center
-                        }
-                        onChange={
-                          handleChange
-                        }
-                        className="form-control"
-                        placeholder="Example: 4.1"
-                      />
-
-                      <span className="input-group-text">
-                        miles
-                      </span>
-
-                    </div>
-
-                    <div className="form-text">
-                      Allowed range:
-                      {" "}
-                      2.1 - 8.2 miles.
-                    </div>
-
-                  </div>
-
-
-                  {/* ========================= */}
-                  {/* School Rating */}
-                  {/* ========================= */}
-
-                  <div className="col-12 col-md-6">
-
-                    <label
-                      htmlFor="school_rating"
-                      className="form-label fw-medium"
-                    >
-                      School Rating
-                    </label>
-
-                    <div className="input-group">
-
-                      <input
-                        id="school_rating"
-                        name="school_rating"
-                        type="number"
-                        min="6.5"
-                        max="9.1"
-                        step="0.1"
-                        value={
-                          formData.school_rating
-                        }
-                        onChange={
-                          handleChange
-                        }
-                        className="form-control"
-                        placeholder="Example: 7.6"
-                      />
-
-                      <span className="input-group-text">
-                        / 10
-                      </span>
-
-                    </div>
-
-                    <div className="form-text">
-                      Allowed range:
-                      {" "}
-                      6.5 - 9.1.
-                    </div>
-
-                  </div>
-
-                </div>
-
-
-                {/* ========================= */}
-                {/* Submit Button */}
-                {/* ========================= */}
-
-                <div className="d-grid mt-4">
-
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={loading}
-                  >
-
-                    {loading ? (
-
-                      <>
-
-                        <span
-                          className="spinner-border spinner-border-sm me-2"
-                          role="status"
-                          aria-hidden="true"
-                        />
-
-                        Getting Prediction...
-
-                      </>
-
-                    ) : (
-
-                      "Estimate Property Value"
-
-                    )}
-
-                  </button>
-
-                </div>
-
-              </form>
-
-            </div>
-
-          </div>
-
-        </div>
-
-
-        {/* ========================= */}
-        {/* Result Section */}
-        {/* ========================= */}
-
-        <div className="col-12 col-lg-5">
-
-          <div className="card shadow-sm border-0 h-100">
-
-            <div className="card-body p-4">
-
-              <h2 className="h5 fw-semibold mb-1">
-                Prediction Result
-              </h2>
-
-              <p className="text-muted small mb-4">
-                The predicted property value will
-                appear here after submitting the form.
-              </p>
-
-
-              {/* ========================= */}
-              {/* Empty State */}
-              {/* ========================= */}
-
-              {!prediction &&
-                !loading && (
-
-                  <div className="text-center py-5">
-
-                    <div
-                      className="bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                      style={{
-                        width:
-                          "70px",
-                        height:
-                          "70px",
-                      }}
-                    >
-
-                      <span
-                        style={{
-                          fontSize:
-                            "30px",
-                        }}
-                      >
-                        🏠
-                      </span>
-
-                    </div>
-
-                    <h3 className="h6 fw-semibold">
-                      No Prediction Yet
-                    </h3>
-
-                    <p className="text-muted small mb-0">
-                      Fill in the property details
-                      and click the estimate button.
-                    </p>
-
-                  </div>
-
-                )}
-
-
-              {/* ========================= */}
-              {/* Loading State */}
-              {/* ========================= */}
-
-              {loading && (
-
-                <div className="text-center py-5">
-
-                  <div
-                    className="spinner-border text-primary mb-3"
-                    role="status"
-                  >
-
-                    <span className="visually-hidden">
-                      Loading...
-                    </span>
-
-                  </div>
-
-                  <p className="text-muted mb-0">
-                    Running the machine learning
-                    model...
-                  </p>
-
-                </div>
-
-              )}
-
-
-              {/* ========================= */}
-              {/* Prediction Result */}
-              {/* ========================= */}
-
-              {prediction !== null &&
-                !loading && (
-
-                  <div>
-
-
-                    {/* ========================= */}
-                    {/* Price */}
-                    {/* ========================= */}
-
-                    <div className="bg-primary bg-opacity-10 rounded p-4 text-center mb-4">
-
-                      <div className="text-muted small mb-2">
-                        Estimated Property Value
-                      </div>
-
-                      <div className="display-6 fw-bold text-primary">
-                        {formatCurrency(
-                          prediction
-                        )}
-                      </div>
-
-                    </div>
-
-
-                    {/* ========================= */}
-                    {/* Summary */}
-                    {/* ========================= */}
-
-                    <h3 className="h6 fw-semibold mb-3">
-                      Property Summary
-                    </h3>
-
-                    <div className="table-responsive">
-
-                      <table className="table table-sm align-middle">
-
-                        <tbody>
-
-                          <tr>
-
-                            <td className="text-muted">
-                              Square Footage
-                            </td>
-
-                            <td className="text-end fw-medium">
-                              {
-                                formData.square_footage
-                              }{" "}
-                              sq ft
-                            </td>
-
-                          </tr>
-
-
-                          <tr>
-
-                            <td className="text-muted">
-                              Bedrooms
-                            </td>
-
-                            <td className="text-end fw-medium">
-                              {
-                                formData.bedrooms
-                              }
-                            </td>
-
-                          </tr>
-
-
-                          <tr>
-
-                            <td className="text-muted">
-                              Bathrooms
-                            </td>
-
-                            <td className="text-end fw-medium">
-                              {
-                                formData.bathrooms
-                              }
-                            </td>
-
-                          </tr>
-
-
-                          <tr>
-
-                            <td className="text-muted">
-                              Year Built
-                            </td>
-
-                            <td className="text-end fw-medium">
-                              {
-                                formData.year_built
-                              }
-                            </td>
-
-                          </tr>
-
-
-                          <tr>
-
-                            <td className="text-muted">
-                              Lot Size
-                            </td>
-
-                            <td className="text-end fw-medium">
-                              {
-                                formData.lot_size
-                              }{" "}
-                              sq ft
-                            </td>
-
-                          </tr>
-
-
-                          <tr>
-
-                            <td className="text-muted">
-                              Distance to City
-                            </td>
-
-                            <td className="text-end fw-medium">
-                              {
-                                formData.distance_to_city_center
-                              }{" "}
-                              miles
-                            </td>
-
-                          </tr>
-
-
-                          <tr>
-
-                            <td className="text-muted">
-                              School Rating
-                            </td>
-
-                            <td className="text-end fw-medium">
-                              {
-                                formData.school_rating
-                              }{" "}
-                              / 10
-                            </td>
-
-                          </tr>
-
-                        </tbody>
-
-                      </table>
-
-                    </div>
-
-                  </div>
-
-                )}
-
-            </div>
-
-          </div>
-
-        </div>
-
+      <p className="mt-5 text-sm text-slate-500">
+        {title}
+      </p>
+
+      <p className="mt-1 text-xl font-bold text-slate-900">
+        {value}
+      </p>
+
+      <p className="mt-1 text-sm text-slate-400">
+        {description}
+      </p>
+
+    </div>
+  );
+}
+
+function ApplicationCard({
+  icon,
+  title,
+  description,
+  href,
+  button,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  href: string;
+  button: string;
+}) {
+  return (
+    <div className="group rounded-2xl border border-slate-200 bg-white p-8 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
+
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+        {icon}
       </div>
 
+      <h3 className="mt-6 text-xl font-bold text-slate-900">
+        {title}
+      </h3>
 
-      {/* ========================= */}
-      {/* Information Card */}
-      {/* ========================= */}
+      <p className="mt-3 leading-7 text-slate-500">
+        {description}
+      </p>
 
-      <div className="card shadow-sm border-0 mt-4">
+      <Link
+        href={href}
+        className="mt-6 inline-flex items-center font-semibold text-blue-600"
+      >
+        {button}
 
-        <div className="card-body p-4">
-
-          <h2 className="h6 fw-semibold">
-            About the Prediction
-          </h2>
-
-          <p className="text-muted small mb-0 mt-2">
-            This estimate is generated by the
-            regression model trained on the housing
-            dataset. The prediction is based on the
-            property characteristics provided above
-            and should be used as an estimate rather
-            than a guaranteed market value.
-          </p>
-
-        </div>
-
-      </div>
+        <span className="ml-2 transition group-hover:translate-x-1">
+          →
+        </span>
+      </Link>
 
     </div>
   );
