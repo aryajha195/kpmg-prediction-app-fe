@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 interface ModelInfo {
-  model: string;
+  model_type: string;
   coefficients: Record<string, number>;
   intercept: number;
   metrics: {
@@ -77,7 +77,7 @@ export default function AnalyticsPage() {
           <Metric
             icon={<BrainCircuit />}
             title="Model"
-            value={model?.model || "Unknown"}
+            value={model?.model_type || "Unknown"}
           />
 
           <Metric
